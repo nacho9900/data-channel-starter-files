@@ -102,6 +102,17 @@ const Room = (props) => {
 
     function callUser(userID) {
         peerRef.current = createPeer(userID);
+        // creo un DataChannel de nombre "sendChannel"
+        // porque se puden tener multiples DataChannels con distinto
+        // nombre
+        sendChannel.current = peerRef.current.createDataChannel("sendChannel");
+        // defino callback para mensajes entrantes
+        sendChannel.current.onmessage = handleReceiveMessage;
+    }
+
+    function handleReceiveMessage(e) {
+        // agrego el mensaje al array
+        setMessages(messages => [...messages, { yours: false, value: e.data }]);
     }
 
     function createPeer(userID) {
@@ -139,6 +150,12 @@ const Room = (props) => {
 
     function handleOffer(incoming) {
         peerRef.current = createPeer();
+        // le agrego que pasa cuando se abre un DataChannel
+        // basicamente le configuro la funcionalidad al DataChannel
+        peerRef.current.ondatachannel = (event) => {
+            sendChannel.current = event.channel;
+            sendChannel.current.onmessage = handleReceiveMessage;
+        };
         const desc = new RTCSessionDescription(incoming.sdp);
         peerRef.current.setRemoteDescription(desc).then(() => {
         }).then(() => {
@@ -150,9 +167,9 @@ const Room = (props) => {
                 target: incoming.caller,
                 caller: socketRef.current.id,
                 sdp: peerRef.current.localDescription
-            }
+            };
             socketRef.current.emit("answer", payload);
-        })
+        });
     }
 
     function handleAnswer(message) {
@@ -165,7 +182,7 @@ const Room = (props) => {
             const payload = {
                 target: otherUser.current,
                 candidate: e.candidate,
-            }
+            };
             socketRef.current.emit("ice-candidate", payload);
         }
     }
@@ -181,6 +198,13 @@ const Room = (props) => {
         setText(e.target.value);
     }
 
+    // funcion para enviar mensaje por el DataChannel
+    function sendMessage() {
+        sendChannel.current.send(text);
+        setMessages(message => [...messages, { yours: true, value: text }]);
+        setText("");
+    }
+
     function renderMessage(message, index) {
         if (message.yours) {
             return (
@@ -189,7 +213,7 @@ const Room = (props) => {
                         {message.value}
                     </MyMessage>
                 </MyRow>
-            )
+            );
         }
 
         return (
@@ -198,7 +222,7 @@ const Room = (props) => {
                     {message.value}
                 </PartnerMessage>
             </PartnerRow>
-        )
+        );
     }
 
     return (
